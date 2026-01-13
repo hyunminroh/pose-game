@@ -62,6 +62,8 @@ button:hover:not(:disabled) {
   border-radius: 8px;
   overflow: hidden;
   background-color: black;
+  /* Ensure container doesn't overflow drastically if screen is small */
+  max-width: 100%;
 }
 
 canvas {

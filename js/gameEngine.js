@@ -1,31 +1,32 @@
 /**
  * gameEngine.js
- * Fruit Catcher Game Logic
+ * Fruit Catcher Game Logic (Dynamic Difficulty)
  */
 
 class GameEngine {
   constructor() {
     this.score = 0;
     this.level = 1;
-    this.timeLimit = 60; // Game duration in seconds
-    this.items = []; // Array to store falling items { x, y, type, speed }
+    this.timeLimit = 60;
+    this.items = [];
     this.isGameActive = false;
     this.lastTime = 0;
     this.spawnTimer = 0;
-    this.spawnInterval = 1500; // Initial spawn interval (ms)
-    this.baseSpeed = 100; // Base falling speed (pixels/sec)
+    this.spawnInterval = 1500;
+    this.baseSpeed = 150; // Increased base speed for larger screen
 
-    // Player position (LEFT, CENTER, RIGHT)
-    this.basketPosition = "CENTER";
+    // Dynamic Difficulty Parameters
+    this.totalLanes = 3; // Starts with 3
+    this.basketWidthRatio = 0.2; // Basket width as percentage of screen width (0.2 = 20%)
+
+    // Player Position (Continuous 0.0 to 1.0)
+    this.basketX = 0.5; // Center
 
     // Callbacks
     this.onScoreChange = null;
     this.onGameEnd = null;
   }
 
-  /**
-   * Start the game
-   */
   start() {
     this.isGameActive = true;
     this.score = 0;
@@ -33,15 +34,16 @@ class GameEngine {
     this.timeLimit = 60;
     this.items = [];
     this.spawnInterval = 1500;
-    this.baseSpeed = 100;
+    this.baseSpeed = 150;
     this.lastTime = performance.now();
+
+    // Reset difficulty
+    this.totalLanes = 3;
+    this.basketWidthRatio = 0.2; // Lane width is 1/3 ≈ 0.33, so basket is smaller than lane
 
     this.gameLoop();
   }
 
-  /**
-   * Stop the game
-   */
   stop() {
     this.isGameActive = false;
     if (this.onGameEnd) {
@@ -49,13 +51,10 @@ class GameEngine {
     }
   }
 
-  /**
-   * Main Game Loop
-   */
   gameLoop(currentTime = performance.now()) {
     if (!this.isGameActive) return;
 
-    const deltaTime = (currentTime - this.lastTime) / 1000; // Seconds
+    const deltaTime = (currentTime - this.lastTime) / 1000;
     this.lastTime = currentTime;
 
     this.update(deltaTime);
@@ -63,11 +62,8 @@ class GameEngine {
     requestAnimationFrame((time) => this.gameLoop(time));
   }
 
-  /**
-   * Update game state
-   */
   update(deltaTime) {
-    // 1. Timer Update
+    // 1. Timer
     this.timeLimit -= deltaTime;
     if (this.timeLimit <= 0) {
       this.timeLimit = 0;
@@ -82,61 +78,63 @@ class GameEngine {
       this.spawnTimer = 0;
     }
 
-    // 3. Update Items (Falling)
-    const canvasHeight = 200; // Assuming 200x200 canvas
+    // 3. Update Items
+    const canvasHeight = 600; // Updated for larger screen
 
     for (let i = this.items.length - 1; i >= 0; i--) {
       let item = this.items[i];
       item.y += item.speed * deltaTime;
 
-      // Check Collision with Basket (at bottom)
-      if (item.y >= canvasHeight - 20) { // Hit bottom area
+      // Collision Detection (AABB-like logic)
+      if (item.y >= canvasHeight - 50) { // Near bottom
         if (this.checkCollision(item)) {
           this.handleItemCollection(item);
-          this.items.splice(i, 1); // Remove item
+          this.items.splice(i, 1);
         } else if (item.y > canvasHeight) {
-          this.items.splice(i, 1); // Missed item, remove
+          this.items.splice(i, 1);
         }
       }
     }
   }
 
-  /**
-   * Spawn a new item
-   */
   spawnItem() {
-    const lanes = ["LEFT", "CENTER", "RIGHT"];
-    const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+    // Pick a random lane index
+    const laneIndex = Math.floor(Math.random() * this.totalLanes);
 
-    // Item Types: Apple (60%), Grape (30%), Bomb (10%)
+    // Calculate lane center position (0.0 to 1.0)
+    // Lane 0 center: 1/(2*N), Lane 1: 3/(2*N), ... Lane k: (2k+1)/(2*N)
+    const laneCenter = (2 * laneIndex + 1) / (2 * this.totalLanes);
+
     const rand = Math.random();
     let type = "apple";
     if (rand > 0.9) type = "bomb";
     else if (rand > 0.6) type = "grape";
 
     this.items.push({
-      lane: randomLane,
-      y: -20, // Start above screen
+      laneIndex: laneIndex, // Store index for easier logic if needed
+      xRatio: laneCenter,   // Horizontal position (0.0 to 1.0)
+      y: -50,
       type: type,
-      speed: this.baseSpeed * (1 + (this.level - 1) * 0.2) // Speed increases with level
+      speed: this.baseSpeed * (1 + (this.level - 1) * 0.15)
     });
   }
 
-  /**
-   * Check if item hits the player's basket
-   */
   checkCollision(item) {
-    // Simple check: Is the basket in the same lane as the item?
-    // And item is close to bottom (handled in update loop condition)
-    return item.lane.toLowerCase() === this.basketPosition.toLowerCase();
+    // Basket is at this.basketX (center of basket, 0.0-1.0)
+    // Item is at item.xRatio (center of item, 0.0-1.0)
+    // Basket Width is this.basketWidthRatio (e.g. 0.2)
+    // Item Width is approx 0.05 (small)
+
+    const basketHalfWidth = this.basketWidthRatio / 2;
+    const itemHalfWidth = 0.04; // Approx item radius ratio
+
+    const dist = Math.abs(this.basketX - item.xRatio);
+    return dist < (basketHalfWidth + itemHalfWidth);
   }
 
-  /**
-   * Handle item collection effect
-   */
   handleItemCollection(item) {
     if (item.type === "bomb") {
-      this.stop(); // Game Over
+      this.stop();
     } else if (item.type === "apple") {
       this.addScore(100);
     } else if (item.type === "grape") {
@@ -145,12 +143,13 @@ class GameEngine {
   }
 
   /**
-   * Update Player Pose (from PoseEngine)
+   * Set Basket Position directly (Control Input)
+   * @param {number} xRatio - 0.0 to 1.0
    */
-  onPoseDetected(poseLabel) {
+  setBasketPosition(xRatio) {
     if (!this.isGameActive) return;
-    // Normalize label (Teachable Machine might return lowercase)
-    this.basketPosition = poseLabel.toUpperCase();
+    // Clamp to screen bounds
+    this.basketX = Math.max(0, Math.min(1, xRatio));
   }
 
   addScore(points) {
@@ -158,9 +157,19 @@ class GameEngine {
 
     // Level Up every 1000 points
     const newLevel = Math.floor(this.score / 1000) + 1;
+
     if (newLevel > this.level) {
       this.level = newLevel;
-      this.baseSpeed *= 1.2; // Increase speed
+      this.baseSpeed *= 1.1;
+
+      // Increase difficulty: Add lanes every 2 levels?
+      // Let's just add a lane every 2 levels to keep it sane.
+      if (this.level % 2 === 1) { // Level 3, 5, 7...
+        this.totalLanes++;
+      }
+
+      // Shrink basket slightly each level (down to min 10%)
+      this.basketWidthRatio = Math.max(0.1, 0.2 - (this.level - 1) * 0.02);
     }
 
     if (this.onScoreChange) {
@@ -168,21 +177,14 @@ class GameEngine {
     }
   }
 
-  getItems() {
-    return this.items;
-  }
+  // Getters for Renderer
+  getItems() { return this.items; }
+  getBasketX() { return this.basketX; }
+  getBasketWidthRatio() { return this.basketWidthRatio; }
+  getTotalLanes() { return this.totalLanes; }
 
-  getBasketPosition() {
-    return this.basketPosition;
-  }
-
-  setScoreChangeCallback(callback) {
-    this.onScoreChange = callback;
-  }
-
-  setGameEndCallback(callback) {
-    this.onGameEnd = callback;
-  }
+  setScoreChangeCallback(callback) { this.onScoreChange = callback; }
+  setGameEndCallback(callback) { this.onGameEnd = callback; }
 }
 
 window.GameEngine = GameEngine;

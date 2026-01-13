@@ -15,6 +15,10 @@ const scoreVal = document.getElementById("score-val");
 const levelVal = document.getElementById("level-val");
 const timeVal = document.getElementById("time-val");
 
+// Configuration
+const GAME_SIZE = 600; // Large Canvas Size
+const WEBCAM_SIZE = 200; // Model input size
+
 /**
  * Initialize Application
  */
@@ -25,16 +29,16 @@ async function init() {
   startBtn.disabled = true;
 
   try {
-    // 1. PoseEngine Init
+    // 1. PoseEngine Init (Webcam 200px for model performance)
     poseEngine = new PoseEngine("./my_model/");
     const { maxPredictions, webcam } = await poseEngine.init({
-      size: 200,
+      size: WEBCAM_SIZE,
       flip: true
     });
 
-    // 2. Stabilizer Init
+    // 2. Stabilizer (Not strictly needed for continuous control but keeps noise down in UI)
     stabilizer = new PredictionStabilizer({
-      threshold: 0.8, // Slightly higher threshold for stability
+      threshold: 0.8,
       smoothingFrames: 3
     });
 
@@ -53,13 +57,13 @@ async function init() {
       stop();
     });
 
-    // 4. Canvas Setup
+    // 4. Canvas Setup (SCALED UP)
     const canvas = document.getElementById("canvas");
-    canvas.width = 200;
-    canvas.height = 200;
+    canvas.width = GAME_SIZE;
+    canvas.height = GAME_SIZE;
     ctx = canvas.getContext("2d");
 
-    // 5. Label Container Setup
+    // 5. Label Container Setup (Optional debug)
     labelContainer = document.getElementById("label-container");
     labelContainer.innerHTML = "";
     for (let i = 0; i < maxPredictions; i++) {
@@ -98,26 +102,39 @@ function stop() {
 }
 
 /**
- * Handle Prediction
+ * Handle Prediction & Control
  */
 function handlePrediction(predictions, pose) {
-  // 1. Stabilize
+  // 1. Process Classification (for Debug UI)
   const stabilized = stabilizer.stabilize(predictions);
 
-  // 2. Update Label UI
-  for (let i = 0; i < predictions.length; i++) {
-    const classPrediction =
-      predictions[i].className + ": " + predictions[i].probability.toFixed(2);
-    labelContainer.childNodes[i].innerHTML = classPrediction;
+  if (labelContainer && labelContainer.childNodes.length > 0) {
+    for (let i = 0; i < predictions.length; i++) {
+      const classPrediction =
+        predictions[i].className + ": " + predictions[i].probability.toFixed(2);
+      labelContainer.childNodes[i].innerHTML = classPrediction;
+    }
   }
 
-  // 3. Max Prediction UI
   const maxPredictionDiv = document.getElementById("max-prediction");
-  maxPredictionDiv.innerHTML = stabilized.className || "Detecting...";
+  if (maxPredictionDiv) {
+    maxPredictionDiv.innerHTML = stabilized.className || "Detecting...";
+  }
 
-  // 4. Pass to GameEngine
-  if (gameEngine && gameEngine.isGameActive && stabilized.className) {
-    gameEngine.onPoseDetected(stabilized.className);
+  // 2. Head Tracking Control (Continuous)
+  if (gameEngine && gameEngine.isGameActive && pose) {
+    // Find Nose Keypoint (Label "nose")
+    // Keypoints: 0: nose, 1: leftEye, 2: rightEye, 3: leftEar, 4: rightEar...
+    const nose = pose.keypoints.find(k => k.part === "nose");
+
+    if (nose && nose.score > 0.5) {
+      // webcam.canvas is 200x200
+      // Normalized X (0.0 to 1.0)
+      // Note: Webcam is flipped in PoseEngine, so x=0 is left on screen (mirror)
+      const normalizedX = nose.position.x / WEBCAM_SIZE;
+
+      gameEngine.setBasketPosition(normalizedX);
+    }
   }
 }
 
@@ -126,17 +143,35 @@ function handlePrediction(predictions, pose) {
  */
 function drawPose(pose) {
   if (poseEngine.webcam && poseEngine.webcam.canvas) {
-    // Draw Webcam Feed
-    ctx.drawImage(poseEngine.webcam.canvas, 0, 0);
+    // 1. Draw Webcam Feed Background (Scaled Up)
+    ctx.save();
+    // Use scaling or drawImage size
+    ctx.drawImage(poseEngine.webcam.canvas, 0, 0, GAME_SIZE, GAME_SIZE);
 
-    // Draw Skeleton (Optional, maybe distracting for game?)
-    // if (pose) {
-    //   const minPartConfidence = 0.5;
-    //   tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
-    //   tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
-    // }
+    // Optional: Darken background to make game elements pop
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
 
-    // Draw Game Elements
+    // 2. Draw Skeleton (Visual Debug - Scaled)
+    /*
+    if (pose) {
+      const scale = GAME_SIZE / WEBCAM_SIZE;
+      const minPartConfidence = 0.5;
+      
+      // Helper to scale and draw
+      // (Simplified: just drawing nose logic for verification if needed)
+      const nose = pose.keypoints.find(k => k.part === "nose");
+      if (nose && nose.score > 0.5) {
+          ctx.beginPath();
+          ctx.arc(nose.position.x * scale, nose.position.y * scale, 10, 0, 2*Math.PI);
+          ctx.fillStyle = "yellow";
+          ctx.fill();
+      }
+    }
+    */
+    ctx.restore();
+
+    // 3. Draw Game Elements
     if (gameEngine && gameEngine.isGameActive) {
       drawGameElements();
     }
@@ -145,57 +180,70 @@ function drawPose(pose) {
 
 function drawGameElements() {
   const items = gameEngine.getItems();
-  const basketPos = gameEngine.getBasketPosition();
+  const basketXRatio = gameEngine.getBasketX();
+  const basketWidthRatio = gameEngine.getBasketWidthRatio();
+  const totalLanes = gameEngine.getTotalLanes();
+
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
-  const laneWidth = width / 3;
 
-  // Draw Lanes (Visual Guide)
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-  ctx.lineWidth = 1;
+  // Draw Lanes
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(laneWidth, 0);
-  ctx.lineTo(laneWidth, height);
-  ctx.moveTo(laneWidth * 2, 0);
-  ctx.lineTo(laneWidth * 2, height);
+  const laneWidth = width / totalLanes;
+  for (let i = 1; i < totalLanes; i++) {
+    ctx.moveTo(laneWidth * i, 0);
+    ctx.lineTo(laneWidth * i, height);
+  }
   ctx.stroke();
 
   // Draw Basket (Player)
-  let basketX = laneWidth * 1.5; // Default Center
-  if (basketPos === "LEFT") basketX = laneWidth * 0.5;
-  else if (basketPos === "RIGHT") basketX = laneWidth * 2.5;
+  // basketXRatio is center, basketWidthRatio is total width
+  const basketW = width * basketWidthRatio;
+  const basketX = (width * basketXRatio) - (basketW / 2);
 
-  ctx.fillStyle = "rgba(0, 255, 0, 0.7)";
-  ctx.fillRect(basketX - 25, height - 30, 50, 20);
+  ctx.fillStyle = "rgba(0, 255, 100, 0.8)";
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 3;
+  ctx.fillRect(basketX, height - 40, basketW, 30);
+  ctx.strokeRect(basketX, height - 40, basketW, 30);
+
   ctx.fillStyle = "white";
-  ctx.font = "12px Arial";
-  ctx.fillText("ME", basketX - 10, height - 15);
+  ctx.font = "bold 16px Arial";
+  ctx.fillText("ME", Math.max(0, basketX), height - 45);
 
   // Draw Items
   items.forEach(item => {
-    let itemX = laneWidth * 1.5;
-    if (item.lane === "LEFT") itemX = laneWidth * 0.5;
-    else if (item.lane === "RIGHT") itemX = laneWidth * 2.5;
+    // item.xRatio is center
+    const itemX = item.xRatio * width;
+    const itemY = item.y;
 
-    // Draw different shapes/colors based on type
+    ctx.beginPath();
     if (item.type === "apple") {
-      ctx.fillStyle = "red";
-      ctx.beginPath();
-      ctx.arc(itemX, item.y, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = "#ff4757"; // Red
+      ctx.arc(itemX, itemY, 20, 0, 2 * Math.PI);
       ctx.fill();
+      // Stem
+      ctx.fillStyle = "#2ecc71";
+      ctx.fillRect(itemX - 2, itemY - 24, 4, 8);
     } else if (item.type === "grape") {
-      ctx.fillStyle = "purple";
+      ctx.fillStyle = "#8e44ad"; // Purple
+      ctx.arc(itemX, itemY, 18, 0, 2 * Math.PI); // Main body
+      ctx.fill();
+      // Simple grape cluster look
       ctx.beginPath();
-      ctx.arc(itemX, item.y, 8, 0, 2 * Math.PI);
+      ctx.arc(itemX - 10, itemY - 10, 10, 0, 2 * Math.PI);
+      ctx.arc(itemX + 10, itemY - 10, 10, 0, 2 * Math.PI);
+      ctx.arc(itemX, itemY + 14, 10, 0, 2 * Math.PI);
       ctx.fill();
     } else if (item.type === "bomb") {
-      ctx.fillStyle = "black";
-      ctx.beginPath();
-      ctx.arc(itemX, item.y, 12, 0, 2 * Math.PI);
+      ctx.fillStyle = "#2f3542"; // Black/Grey
+      ctx.arc(itemX, itemY, 25, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.fillStyle = "red";
-      ctx.fillText("!", itemX - 2, item.y + 4);
+      // Spark
+      ctx.fillStyle = "#eccc68";
+      ctx.fillText("!", itemX - 4, itemY + 8);
     }
   });
 }
-
