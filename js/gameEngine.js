@@ -146,7 +146,16 @@ class GameEngine {
 
   setBasketPosition(xRatio) {
     if (!this.isGameActive) return;
-    this.basketX = Math.max(0, Math.min(1, xRatio));
+
+    // Snap to nearest lane
+    const laneWidth = 1 / this.totalLanes;
+    let laneIndex = Math.floor(xRatio / laneWidth);
+
+    // Clamp lane index
+    laneIndex = Math.max(0, Math.min(laneIndex, this.totalLanes - 1));
+
+    // Set Center Position
+    this.basketX = (laneIndex + 0.5) * laneWidth;
   }
 
   addScore(points) {
