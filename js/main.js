@@ -44,12 +44,6 @@ function selectMode(mode) {
   inputType = mode;
   document.getElementById("selection-screen").style.display = "none";
   document.getElementById("game-container").style.display = "block";
-
-  // Hide max-prediction if keyboard
-  if (mode === 'keyboard') {
-    document.getElementById("max-prediction").style.display = "none";
-    document.getElementById("label-container").style.display = "none";
-  }
 }
 
 /**
@@ -130,7 +124,15 @@ async function startCameraMode() {
     smoothingFrames: 3
   });
 
-  // 3. Label Container
+  // 3. Setup Webcam Container (Side View)
+  const webcamArea = document.getElementById("webcam-area");
+  webcamArea.style.display = "flex"; // Show separate webcam area
+
+  // Clear and Append Webcam Canvas to the DOM Container (NOT the Game Canvas)
+  const webcamContainer = document.getElementById("webcam-container");
+  webcamContainer.innerHTML = "";
+  webcamContainer.appendChild(poseEngine.webcam.canvas);
+
   labelContainer = document.getElementById("label-container");
   labelContainer.innerHTML = "";
   for (let i = 0; i < maxPredictions; i++) {
@@ -152,6 +154,9 @@ function startKeyboardMode() {
   // Setup Key Listeners
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('keyup', handleKeyUp);
+
+  // Hide Webcam Area
+  document.getElementById("webcam-area").style.display = "none";
 
   // Start Input/Render Loop
   loopKeyboard();
@@ -189,6 +194,17 @@ function updateKeyboardInput() {
 }
 
 function drawKeyboardFrame() {
+  // Reuse the Space Background Draw Logic
+  drawSpaceBackground();
+
+  // Draw Game Elements
+  drawGameElements();
+}
+
+/**
+ * Helper to Draw Space Background (Used in both modes)
+ */
+function drawSpaceBackground() {
   // Clear / Space Background
   ctx.fillStyle = "#0d1b2a"; // Deep Space Blue
   ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
@@ -202,9 +218,6 @@ function drawKeyboardFrame() {
     ctx.fill();
   });
   ctx.globalAlpha = 1.0;
-
-  // Draw Game Elements
-  drawGameElements();
 }
 
 /**
@@ -261,21 +274,18 @@ function handlePrediction(predictions, pose) {
 
 /**
  * Draw Pose (Camera Mode)
+ * Renders Game Frame using Space BG (No webcam feed on game canvas)
  */
 function drawPose(pose) {
-  if (poseEngine.webcam && poseEngine.webcam.canvas) {
-    // Draw Webcam Feed Background
-    ctx.save();
-    ctx.drawImage(poseEngine.webcam.canvas, 0, 0, GAME_SIZE, GAME_SIZE);
+  // IMPORTANT: Do NOT draw webcam feed here.
+  // Webcam feed is shown in the separate #webcam-container DOM element.
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-    ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
-    ctx.restore();
+  // Render Game Canvas
+  drawSpaceBackground();
 
-    // Draw Game Elements
-    if (gameEngine && gameEngine.isGameActive) {
-      drawGameElements();
-    }
+  // Draw Game Elements
+  if (gameEngine && gameEngine.isGameActive) {
+    drawGameElements();
   }
 }
 
@@ -302,7 +312,7 @@ function drawGameElements() {
   }
   ctx.stroke();
 
-  // Draw Spaceship (Player) - IMPROVED DESIGN
+  // Draw Spaceship (Player) - Detailed Design
   const shipW = width * basketWidthRatio;
   const shipX = (width * basketXRatio);
   const shipY = height - 50;
@@ -310,93 +320,50 @@ function drawGameElements() {
   ctx.save();
   ctx.translate(shipX, shipY);
 
-  // Scale Down slightly to fit long sleek body
   const scale = 0.8;
   ctx.scale(scale, scale);
 
-  // 1. Side Boosters (Engines)
-  ctx.fillStyle = "#bdc3c7"; // Silver
+  // 1. Side Boosters
+  ctx.fillStyle = "#bdc3c7";
   ctx.strokeStyle = "#7f8c8d";
 
-  // Left Booster
-  ctx.beginPath();
-  ctx.rect(-shipW / 2 - 5, 0, 10, 30);
-  ctx.fill();
-  ctx.stroke();
+  ctx.beginPath(); ctx.rect(-shipW / 2 - 5, 0, 10, 30); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.rect(shipW / 2 - 5, 0, 10, 30); ctx.fill(); ctx.stroke();
 
-  // Right Booster
+  // 2. Main Fuselage
+  ctx.fillStyle = "#ecf0f1";
   ctx.beginPath();
-  ctx.rect(shipW / 2 - 5, 0, 10, 30);
-  ctx.fill();
-  ctx.stroke();
-
-  // 2. Main Fuselage (Long Body)
-  ctx.fillStyle = "#ecf0f1"; // White/Grey body
-  ctx.beginPath();
-  ctx.moveTo(0, -50); // Nose Tip (Longer)
-  ctx.quadraticCurveTo(15, -10, 15, 30); // Right side curve
-  ctx.lineTo(0, 40); // Tail
-  ctx.lineTo(-15, 30); // Left side bottom
-  ctx.quadraticCurveTo(-15, -10, 0, -50); // Left side curve
+  ctx.moveTo(0, -50);
+  ctx.quadraticCurveTo(15, -10, 15, 30);
+  ctx.lineTo(0, 40);
+  ctx.lineTo(-15, 30);
+  ctx.quadraticCurveTo(-15, -10, 0, -50);
   ctx.closePath();
   ctx.fill();
 
-  // Fuselage Detail (Center Line)
   ctx.strokeStyle = "#95a5a6";
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, -45);
-  ctx.lineTo(0, 35);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -45); ctx.lineTo(0, 35); ctx.stroke();
 
-  // 3. Wings (Swept Back)
-  ctx.fillStyle = "#e74c3c"; // Red Accents
-  ctx.beginPath();
-  ctx.moveTo(10, 0);
-  ctx.lineTo(shipW / 1.5, 35); // Wing Tip
-  ctx.lineTo(10, 25);
-  ctx.fill();
+  // 3. Wings
+  ctx.fillStyle = "#e74c3c";
+  ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(shipW / 1.5, 35); ctx.lineTo(10, 25); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-shipW / 1.5, 35); ctx.lineTo(-10, 25); ctx.fill();
 
-  ctx.beginPath();
-  ctx.moveTo(-10, 0);
-  ctx.lineTo(-shipW / 1.5, 35); // Wing Tip
-  ctx.lineTo(-10, 25);
-  ctx.fill();
-
-  // 4. Cockpit (Sleek)
-  ctx.fillStyle = "#2c3e50"; // Dark Glass
-  ctx.beginPath();
-  ctx.ellipse(0, -15, 5, 12, 0, 0, 2 * Math.PI);
-  ctx.fill();
-  // Glare
+  // 4. Cockpit
+  ctx.fillStyle = "#2c3e50";
+  ctx.beginPath(); ctx.ellipse(0, -15, 5, 12, 0, 0, 2 * Math.PI); ctx.fill();
   ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-  ctx.beginPath();
-  ctx.ellipse(-2, -18, 1, 3, 0, 0, 2 * Math.PI);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-2, -18, 1, 3, 0, 0, 2 * Math.PI); ctx.fill();
 
-  // 5. Engine Flames (Complex)
-  ctx.fillStyle = "#e67e22"; // Orange Core
-  ctx.beginPath();
-  ctx.moveTo(-5, 40);
-  ctx.lineTo(5, 40);
-  ctx.lineTo(0, 60 + Math.random() * 15); // Long Main Flame
-  ctx.fill();
+  // 5. Engine Flames
+  ctx.fillStyle = "#e67e22";
+  ctx.beginPath(); ctx.moveTo(-5, 40); ctx.lineTo(5, 40); ctx.lineTo(0, 60 + Math.random() * 15); ctx.fill();
+  ctx.fillStyle = "#f1c40f";
+  ctx.beginPath(); ctx.moveTo(-shipW / 2 - 3, 30); ctx.lineTo(-shipW / 2 + 3, 30); ctx.lineTo(-shipW / 2, 45 + Math.random() * 5); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(shipW / 2 - 3, 30); ctx.lineTo(shipW / 2 + 3, 30); ctx.lineTo(shipW / 2, 45 + Math.random() * 5); ctx.fill();
 
-  // Booster Flames
-  ctx.fillStyle = "#f1c40f"; // Yellow
-  ctx.beginPath();
-  ctx.moveTo(-shipW / 2 - 3, 30);
-  ctx.lineTo(-shipW / 2 + 3, 30);
-  ctx.lineTo(-shipW / 2, 45 + Math.random() * 5);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(shipW / 2 - 3, 30);
-  ctx.lineTo(shipW / 2 + 3, 30);
-  ctx.lineTo(shipW / 2, 45 + Math.random() * 5);
-  ctx.fill();
-
-  // Label "ME" (Below ship)
+  // Label "ME"
   ctx.fillStyle = "white";
   ctx.font = "bold 14px Arial";
   ctx.fillText("ME", 0, 75);
@@ -412,8 +379,8 @@ function drawGameElements() {
     ctx.translate(itemX, itemY);
 
     if (item.type === "apple" || item.type === "grape") {
-      // Draw Star (Points)
-      const color = item.type === "apple" ? "#f1c40f" : "#9b59b6"; // Yellow or Purple Star
+      // Star
+      const color = item.type === "apple" ? "#f1c40f" : "#9b59b6";
       const points = 5;
       const outerRadius = 25;
       const innerRadius = 12;
@@ -428,44 +395,24 @@ function drawGameElements() {
       ctx.closePath();
       ctx.fill();
 
-      // Glow effect
       ctx.shadowBlur = 15;
       ctx.shadowColor = color;
       ctx.stroke();
 
     } else if (item.type === "bomb") {
-      // Draw Asteroid (Rock)
-      ctx.fillStyle = "#7f8c8d"; // Grey
+      // Asteroid
+      ctx.fillStyle = "#7f8c8d";
       ctx.beginPath();
-      // Irregular circle shape approximation
-      ctx.moveTo(20, 0);
-      ctx.lineTo(15, 15);
-      ctx.lineTo(0, 25);
-      ctx.lineTo(-15, 15);
-      ctx.lineTo(-25, 0);
-      ctx.lineTo(-15, -15);
-      ctx.lineTo(0, -20);
-      ctx.lineTo(18, -10);
+      ctx.moveTo(20, 0); ctx.lineTo(15, 15); ctx.lineTo(0, 25); ctx.lineTo(-15, 15);
+      ctx.lineTo(-25, 0); ctx.lineTo(-15, -15); ctx.lineTo(0, -20); ctx.lineTo(18, -10);
       ctx.closePath();
       ctx.fill();
 
-      // Craters
-      ctx.fillStyle = "#636e72"; // Darker Grey
-      ctx.beginPath();
-      ctx.arc(-5, -5, 5, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(8, 5, 3, 0, 2 * Math.PI);
-      ctx.fill();
+      ctx.fillStyle = "#636e72";
+      ctx.beginPath(); ctx.arc(-5, -5, 5, 0, 2 * Math.PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(8, 5, 3, 0, 2 * Math.PI); ctx.fill();
     }
 
     ctx.restore();
   });
-
-  // Keyboard mode hint
-  if (inputType === 'keyboard') {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-    ctx.font = "14px Arial";
-    ctx.fillText("Use Arrow Keys to Move", 10, 30);
-  }
 }
