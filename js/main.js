@@ -302,7 +302,7 @@ function drawGameElements() {
   }
   ctx.stroke();
 
-  // Draw Spaceship (Player)
+  // Draw Spaceship (Player) - IMPROVED DESIGN
   const shipW = width * basketWidthRatio;
   const shipX = (width * basketXRatio);
   const shipY = height - 50;
@@ -310,38 +310,96 @@ function drawGameElements() {
   ctx.save();
   ctx.translate(shipX, shipY);
 
-  // Ship Body
-  ctx.beginPath();
-  ctx.moveTo(0, -30); // Tip
-  ctx.lineTo(shipW / 2, 20); // Right Wing
-  ctx.lineTo(0, 10); // Rear Center
-  ctx.lineTo(-shipW / 2, 20); // Left Wing
-  ctx.closePath();
+  // Scale Down slightly to fit long sleek body
+  const scale = 0.8;
+  ctx.scale(scale, scale);
 
-  ctx.fillStyle = "#e74c3c"; // Red/Orange Ship
+  // 1. Side Boosters (Engines)
+  ctx.fillStyle = "#bdc3c7"; // Silver
+  ctx.strokeStyle = "#7f8c8d";
+
+  // Left Booster
+  ctx.beginPath();
+  ctx.rect(-shipW / 2 - 5, 0, 10, 30);
   ctx.fill();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#c0392b";
   ctx.stroke();
 
-  // Cockpit
+  // Right Booster
   ctx.beginPath();
-  ctx.arc(0, -5, 8, 0, 2 * Math.PI);
-  ctx.fillStyle = "#3498db"; // Blue Glass
+  ctx.rect(shipW / 2 - 5, 0, 10, 30);
+  ctx.fill();
+  ctx.stroke();
+
+  // 2. Main Fuselage (Long Body)
+  ctx.fillStyle = "#ecf0f1"; // White/Grey body
+  ctx.beginPath();
+  ctx.moveTo(0, -50); // Nose Tip (Longer)
+  ctx.quadraticCurveTo(15, -10, 15, 30); // Right side curve
+  ctx.lineTo(0, 40); // Tail
+  ctx.lineTo(-15, 30); // Left side bottom
+  ctx.quadraticCurveTo(-15, -10, 0, -50); // Left side curve
+  ctx.closePath();
   ctx.fill();
 
-  // Engine Flame
+  // Fuselage Detail (Center Line)
+  ctx.strokeStyle = "#95a5a6";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(-5, 10);
-  ctx.lineTo(5, 10);
-  ctx.lineTo(0, 30 + Math.random() * 10); // Flicker
-  ctx.fillStyle = "#f1c40f"; // Yellow Flame
+  ctx.moveTo(0, -45);
+  ctx.lineTo(0, 35);
+  ctx.stroke();
+
+  // 3. Wings (Swept Back)
+  ctx.fillStyle = "#e74c3c"; // Red Accents
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(shipW / 1.5, 35); // Wing Tip
+  ctx.lineTo(10, 25);
   ctx.fill();
 
-  // Label "ME"
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-shipW / 1.5, 35); // Wing Tip
+  ctx.lineTo(-10, 25);
+  ctx.fill();
+
+  // 4. Cockpit (Sleek)
+  ctx.fillStyle = "#2c3e50"; // Dark Glass
+  ctx.beginPath();
+  ctx.ellipse(0, -15, 5, 12, 0, 0, 2 * Math.PI);
+  ctx.fill();
+  // Glare
+  ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.beginPath();
+  ctx.ellipse(-2, -18, 1, 3, 0, 0, 2 * Math.PI);
+  ctx.fill();
+
+  // 5. Engine Flames (Complex)
+  ctx.fillStyle = "#e67e22"; // Orange Core
+  ctx.beginPath();
+  ctx.moveTo(-5, 40);
+  ctx.lineTo(5, 40);
+  ctx.lineTo(0, 60 + Math.random() * 15); // Long Main Flame
+  ctx.fill();
+
+  // Booster Flames
+  ctx.fillStyle = "#f1c40f"; // Yellow
+  ctx.beginPath();
+  ctx.moveTo(-shipW / 2 - 3, 30);
+  ctx.lineTo(-shipW / 2 + 3, 30);
+  ctx.lineTo(-shipW / 2, 45 + Math.random() * 5);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(shipW / 2 - 3, 30);
+  ctx.lineTo(shipW / 2 + 3, 30);
+  ctx.lineTo(shipW / 2, 45 + Math.random() * 5);
+  ctx.fill();
+
+  // Label "ME" (Below ship)
   ctx.fillStyle = "white";
-  ctx.font = "bold 12px Arial";
-  ctx.fillText("ME", 0, 35);
+  ctx.font = "bold 14px Arial";
+  ctx.fillText("ME", 0, 75);
 
   ctx.restore();
 
@@ -406,8 +464,8 @@ function drawGameElements() {
 
   // Keyboard mode hint
   if (inputType === 'keyboard') {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
     ctx.font = "14px Arial";
-    ctx.fillText("Use Arrow Keys to Fly", 10, 30);
+    ctx.fillText("Use Arrow Keys to Move", 10, 30);
   }
 }
