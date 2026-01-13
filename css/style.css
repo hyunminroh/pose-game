@@ -14,6 +14,42 @@ h1 {
   color: #2c3e50;
 }
 
+/* Selection Screen */
+#selection-screen {
+  text-align: center;
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.selection-buttons {
+  display: flex;
+  gap: 20px;
+  margin-top: 30px;
+  justify-content: center;
+}
+
+.select-btn {
+  width: 200px;
+  height: 200px;
+  font-size: 24px;
+  font-weight: bold;
+  border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.select-btn:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
 .button-container {
   margin-bottom: 20px;
 }

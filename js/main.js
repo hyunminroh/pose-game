@@ -1,6 +1,6 @@
 /**
  * main.js
- * connects PoseEngine, GameEngine, and UI
+ * connects PoseEngine, GameEngine, and UI, handles Input Selection
  */
 
 // Global Variables
@@ -10,6 +10,11 @@ let stabilizer;
 let ctx;
 let labelContainer;
 
+// State
+let inputType = null; // 'camera' | 'keyboard'
+let animationId = null;
+let keys = { ArrowLeft: false, ArrowRight: false };
+
 // UI Elements
 const scoreVal = document.getElementById("score-val");
 const levelVal = document.getElementById("level-val");
@@ -18,72 +23,159 @@ const timeVal = document.getElementById("time-val");
 // Configuration
 const GAME_SIZE = 600; // Large Canvas Size
 const WEBCAM_SIZE = 200; // Model input size
+const KEYBOARD_SPEED = 1.5; // Speed for keyboard movement
 
 /**
- * Initialize Application
+ * Mode Selection
  */
-async function init() {
-  const startBtn = document.getElementById("startBtn");
-  const stopBtn = document.getElementById("stopBtn");
+function selectMode(mode) {
+  inputType = mode;
+  document.getElementById("selection-screen").style.display = "none";
+  document.getElementById("game-container").style.display = "block";
 
+  // Hide max-prediction if keyboard
+  if (mode === 'keyboard') {
+    document.getElementById("max-prediction").style.display = "none";
+    document.getElementById("label-container").style.display = "none";
+  }
+}
+
+/**
+ * Initialize Game based on selection
+ */
+async function initGame() {
+  if (!inputType) {
+    alert("Please select a control mode first!");
+    return;
+  }
+
+  const startBtn = document.getElementById("startBtn");
   startBtn.disabled = true;
 
   try {
-    // 1. PoseEngine Init (Webcam 200px for model performance)
-    poseEngine = new PoseEngine("./my_model/");
-    const { maxPredictions, webcam } = await poseEngine.init({
-      size: WEBCAM_SIZE,
-      flip: true
-    });
+    // Common Game Engine Init
+    if (!gameEngine) {
+      gameEngine = new GameEngine();
+      setupGameCallbacks();
+    }
 
-    // 2. Stabilizer (Not strictly needed for continuous control but keeps noise down in UI)
-    stabilizer = new PredictionStabilizer({
-      threshold: 0.8,
-      smoothingFrames: 3
-    });
-
-    // 3. GameEngine Init
-    gameEngine = new GameEngine();
-
-    // UI Callbacks
-    gameEngine.setScoreChangeCallback((score, level, time) => {
-      if (scoreVal) scoreVal.innerText = score;
-      if (levelVal) levelVal.innerText = level;
-      if (timeVal) timeVal.innerText = time;
-    });
-
-    gameEngine.setGameEndCallback((finalScore, finalLevel) => {
-      alert(`Game Over! Score: ${finalScore}`);
-      stop();
-    });
-
-    // 4. Canvas Setup (SCALED UP)
     const canvas = document.getElementById("canvas");
     canvas.width = GAME_SIZE;
     canvas.height = GAME_SIZE;
     ctx = canvas.getContext("2d");
 
-    // 5. Label Container Setup (Optional debug)
-    labelContainer = document.getElementById("label-container");
-    labelContainer.innerHTML = "";
-    for (let i = 0; i < maxPredictions; i++) {
-      labelContainer.appendChild(document.createElement("div"));
+    if (inputType === 'camera') {
+      await startCameraMode();
+    } else {
+      startKeyboardMode();
     }
 
-    // 6. PoseEngine Callbacks
-    poseEngine.setPredictionCallback(handlePrediction);
-    poseEngine.setDrawCallback(drawPose);
-
-    // 7. Start Engines
-    poseEngine.start();
+    // Start engines
     gameEngine.start();
+    document.getElementById("stopBtn").disabled = false;
 
-    stopBtn.disabled = false;
   } catch (error) {
     console.error("Init Error:", error);
     alert("Failed to initialize. Check console.");
     startBtn.disabled = false;
   }
+}
+
+function setupGameCallbacks() {
+  gameEngine.setScoreChangeCallback((score, level, time) => {
+    if (scoreVal) scoreVal.innerText = score;
+    if (levelVal) levelVal.innerText = level;
+    if (timeVal) timeVal.innerText = time;
+  });
+
+  gameEngine.setGameEndCallback((finalScore, finalLevel) => {
+    alert(`Game Over! Score: ${finalScore}`);
+    stop();
+  });
+}
+
+/**
+ * Camera Mode Implementation
+ */
+async function startCameraMode() {
+  // 1. PoseEngine Init
+  poseEngine = new PoseEngine("./my_model/");
+  const { maxPredictions } = await poseEngine.init({
+    size: WEBCAM_SIZE,
+    flip: true
+  });
+
+  // 2. Stabilizer Init
+  stabilizer = new PredictionStabilizer({
+    threshold: 0.8,
+    smoothingFrames: 3
+  });
+
+  // 3. Label Container
+  labelContainer = document.getElementById("label-container");
+  labelContainer.innerHTML = "";
+  for (let i = 0; i < maxPredictions; i++) {
+    labelContainer.appendChild(document.createElement("div"));
+  }
+
+  // 4. Callbacks
+  poseEngine.setPredictionCallback(handlePrediction);
+  poseEngine.setDrawCallback(drawPose);
+
+  // 5. Start Webcam Loop
+  poseEngine.start();
+}
+
+/**
+ * Keyboard Mode Implementation
+ */
+function startKeyboardMode() {
+  // Setup Key Listeners
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+
+  // Start Input/Render Loop
+  loopKeyboard();
+}
+
+function handleKeyDown(e) {
+  if (e.code === "ArrowLeft") keys.ArrowLeft = true;
+  if (e.code === "ArrowRight") keys.ArrowRight = true;
+}
+
+function handleKeyUp(e) {
+  if (e.code === "ArrowLeft") keys.ArrowLeft = false;
+  if (e.code === "ArrowRight") keys.ArrowRight = false;
+}
+
+function loopKeyboard() {
+  if (!gameEngine || !gameEngine.isGameActive) return;
+
+  // Update Basket Position
+  updateKeyboardInput();
+
+  // Render Frame
+  drawKeyboardFrame();
+
+  animationId = requestAnimationFrame(loopKeyboard);
+}
+
+function updateKeyboardInput() {
+  let currentX = gameEngine.getBasketX(); // 0.0 to 1.0
+
+  if (keys.ArrowLeft) currentX -= 0.01 * KEYBOARD_SPEED;
+  if (keys.ArrowRight) currentX += 0.01 * KEYBOARD_SPEED;
+
+  gameEngine.setBasketPosition(currentX);
+}
+
+function drawKeyboardFrame() {
+  // Clear / Background
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
+
+  // Draw Game Elements
+  drawGameElements();
 }
 
 /**
@@ -97,15 +189,21 @@ function stop() {
   if (gameEngine) gameEngine.stop();
   if (stabilizer) stabilizer.reset();
 
+  if (inputType === 'keyboard') {
+    window.cancelAnimationFrame(animationId);
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('keyup', handleKeyUp);
+  }
+
   startBtn.disabled = false;
   stopBtn.disabled = true;
 }
 
 /**
- * Handle Prediction & Control
+ * Handle Prediction & Control (Camera Mode)
  */
 function handlePrediction(predictions, pose) {
-  // 1. Process Classification (for Debug UI)
+  // Stabilize & UI
   const stabilized = stabilizer.stabilize(predictions);
 
   if (labelContainer && labelContainer.childNodes.length > 0) {
@@ -121,63 +219,40 @@ function handlePrediction(predictions, pose) {
     maxPredictionDiv.innerHTML = stabilized.className || "Detecting...";
   }
 
-  // 2. Head Tracking Control (Continuous)
+  // Head Tracking Control
   if (gameEngine && gameEngine.isGameActive && pose) {
-    // Find Nose Keypoint (Label "nose")
-    // Keypoints: 0: nose, 1: leftEye, 2: rightEye, 3: leftEar, 4: rightEar...
     const nose = pose.keypoints.find(k => k.part === "nose");
 
     if (nose && nose.score > 0.5) {
-      // webcam.canvas is 200x200
-      // Normalized X (0.0 to 1.0)
-      // Note: Webcam is flipped in PoseEngine, so x=0 is left on screen (mirror)
       const normalizedX = nose.position.x / WEBCAM_SIZE;
-
       gameEngine.setBasketPosition(normalizedX);
     }
   }
 }
 
 /**
- * Draw Pose & Game Elements
+ * Draw Pose (Camera Mode)
  */
 function drawPose(pose) {
   if (poseEngine.webcam && poseEngine.webcam.canvas) {
-    // 1. Draw Webcam Feed Background (Scaled Up)
+    // Draw Webcam Feed Background
     ctx.save();
-    // Use scaling or drawImage size
     ctx.drawImage(poseEngine.webcam.canvas, 0, 0, GAME_SIZE, GAME_SIZE);
 
-    // Optional: Darken background to make game elements pop
     ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
     ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
-
-    // 2. Draw Skeleton (Visual Debug - Scaled)
-    /*
-    if (pose) {
-      const scale = GAME_SIZE / WEBCAM_SIZE;
-      const minPartConfidence = 0.5;
-      
-      // Helper to scale and draw
-      // (Simplified: just drawing nose logic for verification if needed)
-      const nose = pose.keypoints.find(k => k.part === "nose");
-      if (nose && nose.score > 0.5) {
-          ctx.beginPath();
-          ctx.arc(nose.position.x * scale, nose.position.y * scale, 10, 0, 2*Math.PI);
-          ctx.fillStyle = "yellow";
-          ctx.fill();
-      }
-    }
-    */
     ctx.restore();
 
-    // 3. Draw Game Elements
+    // Draw Game Elements
     if (gameEngine && gameEngine.isGameActive) {
       drawGameElements();
     }
   }
 }
 
+/**
+ * Render Game Elements (Common)
+ */
 function drawGameElements() {
   const items = gameEngine.getItems();
   const basketXRatio = gameEngine.getBasketX();
@@ -198,8 +273,7 @@ function drawGameElements() {
   }
   ctx.stroke();
 
-  // Draw Basket (Player)
-  // basketXRatio is center, basketWidthRatio is total width
+  // Draw Basket
   const basketW = width * basketWidthRatio;
   const basketX = (width * basketXRatio) - (basketW / 2);
 
@@ -215,7 +289,6 @@ function drawGameElements() {
 
   // Draw Items
   items.forEach(item => {
-    // item.xRatio is center
     const itemX = item.xRatio * width;
     const itemY = item.y;
 
@@ -229,21 +302,27 @@ function drawGameElements() {
       ctx.fillRect(itemX - 2, itemY - 24, 4, 8);
     } else if (item.type === "grape") {
       ctx.fillStyle = "#8e44ad"; // Purple
-      ctx.arc(itemX, itemY, 18, 0, 2 * Math.PI); // Main body
+      ctx.arc(itemX, itemY, 18, 0, 2 * Math.PI);
       ctx.fill();
-      // Simple grape cluster look
+      // Cluster
       ctx.beginPath();
       ctx.arc(itemX - 10, itemY - 10, 10, 0, 2 * Math.PI);
       ctx.arc(itemX + 10, itemY - 10, 10, 0, 2 * Math.PI);
       ctx.arc(itemX, itemY + 14, 10, 0, 2 * Math.PI);
       ctx.fill();
     } else if (item.type === "bomb") {
-      ctx.fillStyle = "#2f3542"; // Black/Grey
+      ctx.fillStyle = "#2f3542"; // Black
       ctx.arc(itemX, itemY, 25, 0, 2 * Math.PI);
       ctx.fill();
-      // Spark
       ctx.fillStyle = "#eccc68";
       ctx.fillText("!", itemX - 4, itemY + 8);
     }
   });
+
+  // Keyboard mode hint
+  if (inputType === 'keyboard') {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.font = "14px Arial";
+    ctx.fillText("Use Arrow Keys to Move", 10, 30);
+  }
 }
