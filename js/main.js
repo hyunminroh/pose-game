@@ -15,13 +15,25 @@ let inputType = null; // 'camera' | 'keyboard'
 let animationId = null;
 let keys = { ArrowLeft: false, ArrowRight: false };
 
+// Space Theme Background Stars
+const STAR_BG = [];
+const GAME_SIZE = 600; // Large Canvas Size
+// Generate random stars for background once
+for (let i = 0; i < 100; i++) {
+  STAR_BG.push({
+    x: Math.random() * GAME_SIZE,
+    y: Math.random() * GAME_SIZE,
+    size: Math.random() * 2 + 1,
+    opacity: Math.random()
+  });
+}
+
 // UI Elements
 const scoreVal = document.getElementById("score-val");
 const levelVal = document.getElementById("level-val");
 const livesVal = document.getElementById("lives-val");
 
 // Configuration
-const GAME_SIZE = 600; // Large Canvas Size
 const WEBCAM_SIZE = 200; // Model input size
 const KEYBOARD_SPEED = 1.5; // Speed for keyboard movement
 
@@ -177,9 +189,19 @@ function updateKeyboardInput() {
 }
 
 function drawKeyboardFrame() {
-  // Clear / Background
-  ctx.fillStyle = "black";
+  // Clear / Space Background
+  ctx.fillStyle = "#0d1b2a"; // Deep Space Blue
   ctx.fillRect(0, 0, GAME_SIZE, GAME_SIZE);
+
+  // Draw Stars
+  ctx.fillStyle = "white";
+  STAR_BG.forEach(star => {
+    ctx.globalAlpha = star.opacity;
+    ctx.beginPath();
+    ctx.arc(star.x, star.y, star.size, 0, 2 * Math.PI);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1.0;
 
   // Draw Game Elements
   drawGameElements();
@@ -269,9 +291,9 @@ function drawGameElements() {
   const width = ctx.canvas.width;
   const height = ctx.canvas.height;
 
-  // Draw Lanes
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-  ctx.lineWidth = 2;
+  // Draw Lanes (Subtle Energy Beams)
+  ctx.strokeStyle = "rgba(100, 255, 218, 0.1)"; // Cyan faint
+  ctx.lineWidth = 1;
   ctx.beginPath();
   const laneWidth = width / totalLanes;
   for (let i = 1; i < totalLanes; i++) {
@@ -280,98 +302,112 @@ function drawGameElements() {
   }
   ctx.stroke();
 
-  // Draw Basket (Realistic Wicker Style)
-  const basketW = width * basketWidthRatio; // Total width
-  const basketX = (width * basketXRatio); // Center X
-
-  const basketTopY = height - 50;
-  const basketBottomY = height - 10;
-  const topHalfW = basketW / 2;
-  const bottomHalfW = basketW * 0.35; // Narrower bottom
+  // Draw Spaceship (Player)
+  const shipW = width * basketWidthRatio;
+  const shipX = (width * basketXRatio);
+  const shipY = height - 50;
 
   ctx.save();
+  ctx.translate(shipX, shipY);
 
-  // 1. Basket Shape (Trapezoid)
+  // Ship Body
   ctx.beginPath();
-  ctx.moveTo(basketX - topHalfW, basketTopY); // Top Left
-  ctx.lineTo(basketX + topHalfW, basketTopY); // Top Right
-  ctx.lineTo(basketX + bottomHalfW, basketBottomY); // Bottom Right
-  ctx.lineTo(basketX - bottomHalfW, basketBottomY); // Bottom Left
+  ctx.moveTo(0, -30); // Tip
+  ctx.lineTo(shipW / 2, 20); // Right Wing
+  ctx.lineTo(0, 10); // Rear Center
+  ctx.lineTo(-shipW / 2, 20); // Left Wing
   ctx.closePath();
 
-  // 2. Fill with Wicker Color
-  ctx.fillStyle = "#d35400"; // Dark Orange/Brown
+  ctx.fillStyle = "#e74c3c"; // Red/Orange Ship
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "#8e44ad"; // Outline
+  ctx.strokeStyle = "#c0392b";
   ctx.stroke();
 
-  // 3. Wicker Texture (Weaving Lines)
-  ctx.strokeStyle = "#e67e22"; // Lighter Orange
-  ctx.lineWidth = 2;
+  // Cockpit
   ctx.beginPath();
-  // Horizontal lines
-  for (let y = basketTopY + 5; y < basketBottomY; y += 8) {
-    ctx.moveTo(basketX - topHalfW + 5, y);
-    ctx.lineTo(basketX + topHalfW - 5, y);
-  }
-  // Vertical lines (angled)
-  for (let xOffset = -0.3; xOffset <= 0.3; xOffset += 0.15) {
-    ctx.moveTo(basketX + (basketW * xOffset), basketTopY);
-    ctx.lineTo(basketX + (basketW * xOffset * 0.8), basketBottomY);
-  }
-  ctx.stroke();
-
-  // 4. Basket Rim
-  ctx.beginPath();
-  ctx.rect(basketX - topHalfW - 5, basketTopY - 5, basketW + 10, 8);
-  ctx.fillStyle = "#a04000"; // Darker Rim
+  ctx.arc(0, -5, 8, 0, 2 * Math.PI);
+  ctx.fillStyle = "#3498db"; // Blue Glass
   ctx.fill();
 
-  // 5. Label "ME"
+  // Engine Flame
+  ctx.beginPath();
+  ctx.moveTo(-5, 10);
+  ctx.lineTo(5, 10);
+  ctx.lineTo(0, 30 + Math.random() * 10); // Flicker
+  ctx.fillStyle = "#f1c40f"; // Yellow Flame
+  ctx.fill();
+
+  // Label "ME"
   ctx.fillStyle = "white";
-  ctx.font = "bold 14px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("ME", basketX, basketBottomY - 10);
+  ctx.font = "bold 12px Arial";
+  ctx.fillText("ME", 0, 35);
 
   ctx.restore();
 
-  // Draw Items
+  // Draw Space Items
   items.forEach(item => {
     const itemX = item.xRatio * width;
     const itemY = item.y;
 
-    ctx.beginPath();
-    if (item.type === "apple") {
-      ctx.fillStyle = "#ff4757"; // Red
-      ctx.arc(itemX, itemY, 20, 0, 2 * Math.PI);
-      ctx.fill();
-      // Stem
-      ctx.fillStyle = "#2ecc71";
-      ctx.fillRect(itemX - 2, itemY - 24, 4, 8);
-    } else if (item.type === "grape") {
-      ctx.fillStyle = "#8e44ad"; // Purple
-      ctx.arc(itemX, itemY, 18, 0, 2 * Math.PI);
-      ctx.fill();
-      // Cluster
+    ctx.save();
+    ctx.translate(itemX, itemY);
+
+    if (item.type === "apple" || item.type === "grape") {
+      // Draw Star (Points)
+      const color = item.type === "apple" ? "#f1c40f" : "#9b59b6"; // Yellow or Purple Star
+      const points = 5;
+      const outerRadius = 25;
+      const innerRadius = 12;
+
       ctx.beginPath();
-      ctx.arc(itemX - 10, itemY - 10, 10, 0, 2 * Math.PI);
-      ctx.arc(itemX + 10, itemY - 10, 10, 0, 2 * Math.PI);
-      ctx.arc(itemX, itemY + 14, 10, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      for (let i = 0; i < points * 2; i++) {
+        const r = i % 2 === 0 ? outerRadius : innerRadius;
+        const angle = (i * Math.PI) / points;
+        ctx.lineTo(r * Math.sin(angle), r * Math.cos(angle));
+      }
+      ctx.closePath();
       ctx.fill();
+
+      // Glow effect
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = color;
+      ctx.stroke();
+
     } else if (item.type === "bomb") {
-      ctx.fillStyle = "#2f3542"; // Black
-      ctx.arc(itemX, itemY, 25, 0, 2 * Math.PI);
+      // Draw Asteroid (Rock)
+      ctx.fillStyle = "#7f8c8d"; // Grey
+      ctx.beginPath();
+      // Irregular circle shape approximation
+      ctx.moveTo(20, 0);
+      ctx.lineTo(15, 15);
+      ctx.lineTo(0, 25);
+      ctx.lineTo(-15, 15);
+      ctx.lineTo(-25, 0);
+      ctx.lineTo(-15, -15);
+      ctx.lineTo(0, -20);
+      ctx.lineTo(18, -10);
+      ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "#eccc68";
-      ctx.fillText("!", itemX - 4, itemY + 8);
+
+      // Craters
+      ctx.fillStyle = "#636e72"; // Darker Grey
+      ctx.beginPath();
+      ctx.arc(-5, -5, 5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(8, 5, 3, 0, 2 * Math.PI);
+      ctx.fill();
     }
+
+    ctx.restore();
   });
 
   // Keyboard mode hint
   if (inputType === 'keyboard') {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
     ctx.font = "14px Arial";
-    ctx.fillText("Use Arrow Keys to Move", 10, 30);
+    ctx.fillText("Use Arrow Keys to Fly", 10, 30);
   }
 }
