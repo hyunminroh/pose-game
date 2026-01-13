@@ -1,19 +1,22 @@
 /**
  * main.js
- * 포즈 인식과 게임 로직을 초기화하고 서로 연결하는 진입점
- *
- * PoseEngine, GameEngine, Stabilizer를 조합하여 애플리케이션을 구동
+ * connects PoseEngine, GameEngine, and UI
  */
 
-// 전역 변수
+// Global Variables
 let poseEngine;
 let gameEngine;
 let stabilizer;
 let ctx;
 let labelContainer;
 
+// UI Elements
+const scoreVal = document.getElementById("score-val");
+const levelVal = document.getElementById("level-val");
+const timeVal = document.getElementById("time-val");
+
 /**
- * 애플리케이션 초기화
+ * Initialize Application
  */
 async function init() {
   const startBtn = document.getElementById("startBtn");
@@ -22,137 +25,177 @@ async function init() {
   startBtn.disabled = true;
 
   try {
-    // 1. PoseEngine 초기화
+    // 1. PoseEngine Init
     poseEngine = new PoseEngine("./my_model/");
     const { maxPredictions, webcam } = await poseEngine.init({
       size: 200,
       flip: true
     });
 
-    // 2. Stabilizer 초기화
+    // 2. Stabilizer Init
     stabilizer = new PredictionStabilizer({
-      threshold: 0.7,
+      threshold: 0.8, // Slightly higher threshold for stability
       smoothingFrames: 3
     });
 
-    // 3. GameEngine 초기화 (선택적)
+    // 3. GameEngine Init
     gameEngine = new GameEngine();
 
-    // 4. 캔버스 설정
+    // UI Callbacks
+    gameEngine.setScoreChangeCallback((score, level, time) => {
+      if (scoreVal) scoreVal.innerText = score;
+      if (levelVal) levelVal.innerText = level;
+      if (timeVal) timeVal.innerText = time;
+    });
+
+    gameEngine.setGameEndCallback((finalScore, finalLevel) => {
+      alert(`Game Over! Score: ${finalScore}`);
+      stop();
+    });
+
+    // 4. Canvas Setup
     const canvas = document.getElementById("canvas");
     canvas.width = 200;
     canvas.height = 200;
     ctx = canvas.getContext("2d");
 
-    // 5. Label Container 설정
+    // 5. Label Container Setup
     labelContainer = document.getElementById("label-container");
-    labelContainer.innerHTML = ""; // 초기화
+    labelContainer.innerHTML = "";
     for (let i = 0; i < maxPredictions; i++) {
       labelContainer.appendChild(document.createElement("div"));
     }
 
-    // 6. PoseEngine 콜백 설정
+    // 6. PoseEngine Callbacks
     poseEngine.setPredictionCallback(handlePrediction);
     poseEngine.setDrawCallback(drawPose);
 
-    // 7. PoseEngine 시작
+    // 7. Start Engines
     poseEngine.start();
+    gameEngine.start();
 
     stopBtn.disabled = false;
   } catch (error) {
-    console.error("초기화 중 오류 발생:", error);
-    alert("초기화에 실패했습니다. 콘솔을 확인하세요.");
+    console.error("Init Error:", error);
+    alert("Failed to initialize. Check console.");
     startBtn.disabled = false;
   }
 }
 
 /**
- * 애플리케이션 중지
+ * Stop Application
  */
 function stop() {
   const startBtn = document.getElementById("startBtn");
   const stopBtn = document.getElementById("stopBtn");
 
-  if (poseEngine) {
-    poseEngine.stop();
-  }
-
-  if (gameEngine && gameEngine.isGameActive) {
-    gameEngine.stop();
-  }
-
-  if (stabilizer) {
-    stabilizer.reset();
-  }
+  if (poseEngine) poseEngine.stop();
+  if (gameEngine) gameEngine.stop();
+  if (stabilizer) stabilizer.reset();
 
   startBtn.disabled = false;
   stopBtn.disabled = true;
 }
 
 /**
- * 예측 결과 처리 콜백
- * @param {Array} predictions - TM 모델의 예측 결과
- * @param {Object} pose - PoseNet 포즈 데이터
+ * Handle Prediction
  */
 function handlePrediction(predictions, pose) {
-  // 1. Stabilizer로 예측 안정화
+  // 1. Stabilize
   const stabilized = stabilizer.stabilize(predictions);
 
-  // 2. Label Container 업데이트
+  // 2. Update Label UI
   for (let i = 0; i < predictions.length; i++) {
     const classPrediction =
       predictions[i].className + ": " + predictions[i].probability.toFixed(2);
     labelContainer.childNodes[i].innerHTML = classPrediction;
   }
 
-  // 3. 최고 확률 예측 표시
+  // 3. Max Prediction UI
   const maxPredictionDiv = document.getElementById("max-prediction");
-  maxPredictionDiv.innerHTML = stabilized.className || "감지 중...";
+  maxPredictionDiv.innerHTML = stabilized.className || "Detecting...";
 
-  // 4. GameEngine에 포즈 전달 (게임 모드일 경우)
+  // 4. Pass to GameEngine
   if (gameEngine && gameEngine.isGameActive && stabilized.className) {
     gameEngine.onPoseDetected(stabilized.className);
   }
 }
 
 /**
- * 포즈 그리기 콜백
- * @param {Object} pose - PoseNet 포즈 데이터
+ * Draw Pose & Game Elements
  */
 function drawPose(pose) {
   if (poseEngine.webcam && poseEngine.webcam.canvas) {
+    // Draw Webcam Feed
     ctx.drawImage(poseEngine.webcam.canvas, 0, 0);
 
-    // 키포인트와 스켈레톤 그리기
-    if (pose) {
-      const minPartConfidence = 0.5;
-      tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
-      tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
+    // Draw Skeleton (Optional, maybe distracting for game?)
+    // if (pose) {
+    //   const minPartConfidence = 0.5;
+    //   tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
+    //   tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
+    // }
+
+    // Draw Game Elements
+    if (gameEngine && gameEngine.isGameActive) {
+      drawGameElements();
     }
   }
 }
 
-// 게임 모드 시작 함수 (선택적 - 향후 확장용)
-function startGameMode(config) {
-  if (!gameEngine) {
-    console.warn("GameEngine이 초기화되지 않았습니다.");
-    return;
-  }
+function drawGameElements() {
+  const items = gameEngine.getItems();
+  const basketPos = gameEngine.getBasketPosition();
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const laneWidth = width / 3;
 
-  gameEngine.setCommandChangeCallback((command) => {
-    console.log("새로운 명령:", command);
-    // UI 업데이트 로직 추가 가능
+  // Draw Lanes (Visual Guide)
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(laneWidth, 0);
+  ctx.lineTo(laneWidth, height);
+  ctx.moveTo(laneWidth * 2, 0);
+  ctx.lineTo(laneWidth * 2, height);
+  ctx.stroke();
+
+  // Draw Basket (Player)
+  let basketX = laneWidth * 1.5; // Default Center
+  if (basketPos === "LEFT") basketX = laneWidth * 0.5;
+  else if (basketPos === "RIGHT") basketX = laneWidth * 2.5;
+
+  ctx.fillStyle = "rgba(0, 255, 0, 0.7)";
+  ctx.fillRect(basketX - 25, height - 30, 50, 20);
+  ctx.fillStyle = "white";
+  ctx.font = "12px Arial";
+  ctx.fillText("ME", basketX - 10, height - 15);
+
+  // Draw Items
+  items.forEach(item => {
+    let itemX = laneWidth * 1.5;
+    if (item.lane === "LEFT") itemX = laneWidth * 0.5;
+    else if (item.lane === "RIGHT") itemX = laneWidth * 2.5;
+
+    // Draw different shapes/colors based on type
+    if (item.type === "apple") {
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(itemX, item.y, 10, 0, 2 * Math.PI);
+      ctx.fill();
+    } else if (item.type === "grape") {
+      ctx.fillStyle = "purple";
+      ctx.beginPath();
+      ctx.arc(itemX, item.y, 8, 0, 2 * Math.PI);
+      ctx.fill();
+    } else if (item.type === "bomb") {
+      ctx.fillStyle = "black";
+      ctx.beginPath();
+      ctx.arc(itemX, item.y, 12, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = "red";
+      ctx.fillText("!", itemX - 2, item.y + 4);
+    }
   });
-
-  gameEngine.setScoreChangeCallback((score, level) => {
-    console.log(`점수: ${score}, 레벨: ${level}`);
-    // UI 업데이트 로직 추가 가능
-  });
-
-  gameEngine.setGameEndCallback((finalScore, finalLevel) => {
-    console.log(`게임 종료! 최종 점수: ${finalScore}, 최종 레벨: ${finalLevel}`);
-    alert(`게임 종료!\n최종 점수: ${finalScore}\n최종 레벨: ${finalLevel}`);
-  });
-
-  gameEngine.start(config);
 }
+
