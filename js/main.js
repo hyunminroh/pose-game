@@ -18,7 +18,7 @@ let keys = { ArrowLeft: false, ArrowRight: false };
 // UI Elements
 const scoreVal = document.getElementById("score-val");
 const levelVal = document.getElementById("level-val");
-const timeVal = document.getElementById("time-val");
+const livesVal = document.getElementById("lives-val");
 
 // Configuration
 const GAME_SIZE = 600; // Large Canvas Size
@@ -83,10 +83,16 @@ async function initGame() {
 }
 
 function setupGameCallbacks() {
-  gameEngine.setScoreChangeCallback((score, level, time) => {
+  gameEngine.setScoreChangeCallback((score, level, lives) => {
     if (scoreVal) scoreVal.innerText = score;
     if (levelVal) levelVal.innerText = level;
-    if (timeVal) timeVal.innerText = time;
+
+    // Render Hearts
+    if (livesVal) {
+      let hearts = "";
+      for (let i = 0; i < lives; i++) hearts += "❤️";
+      livesVal.innerText = hearts;
+    }
   });
 
   gameEngine.setGameEndCallback((finalScore, finalLevel) => {
