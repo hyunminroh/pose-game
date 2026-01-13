@@ -8,7 +8,7 @@
 </head>
 
 <body>
-  <h1>Fruit Catcher Game</h1>
+  <h1>Star Catcher</h1>
 
   <!-- Selection Screen -->
   <div id="selection-screen">
@@ -25,21 +25,36 @@
 
   <!-- Game Content (Hidden Initially) -->
   <div id="game-container" style="display: none;">
-    <div id="game-ui">
-      <div class="ui-item">Score: <span id="score-val">0</span></div>
-      <div class="ui-item">Level: <span id="level-val">1</span></div>
-      <div class="ui-item">Lives: <span id="lives-val">❤️❤️❤️</span></div>
+    <div class="game-wrapper" style="display: flex; gap: 20px; align-items: flex-start; justify-content: center;">
+
+      <!-- Game Area -->
+      <div class="game-area">
+        <div id="game-ui">
+          <div class="ui-item">Score: <span id="score-val">0</span></div>
+          <div class="ui-item">Level: <span id="level-val">1</span></div>
+          <div class="ui-item">Lives: <span id="lives-val">❤️❤️❤️</span></div>
+        </div>
+
+        <div class="canvas-container">
+          <canvas id="canvas"></canvas>
+          <div id="max-prediction"></div>
+        </div>
+
+        <div class="button-container">
+          <button type="button" id="startBtn" onclick="initGame()">Start Game</button>
+          <button type="button" id="stopBtn" onclick="stop()" disabled>Stop</button>
+          <button type="button" onclick="location.reload()">Back to Menu</button>
+        </div>
+      </div>
+
+      <!-- Webcam Area (Separate) -->
+      <div id="webcam-area" style="display: none; flex-direction: column; align-items: center;">
+        <h3 style="color: white; margin-top: 0;">Camera Feed</h3>
+        <div id="webcam-container"></div>
+        <div id="label-container" style="margin-top: 10px;"></div>
+      </div>
+
     </div>
-    <div class="button-container">
-      <button type="button" id="startBtn" onclick="initGame()">Start Game</button>
-      <button type="button" id="stopBtn" onclick="stop()" disabled>Stop</button>
-      <button type="button" onclick="location.reload()">Back to Menu</button>
-    </div>
-    <div class="canvas-container">
-      <canvas id="canvas"></canvas>
-      <div id="max-prediction"></div>
-    </div>
-    <div id="label-container"></div>
   </div>
 
   <!-- Teachable Machine 라이브러리 -->
