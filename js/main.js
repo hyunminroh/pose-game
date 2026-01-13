@@ -64,14 +64,15 @@ async function initGame() {
     canvas.height = GAME_SIZE;
     ctx = canvas.getContext("2d");
 
+    // Start Game Logic first
+    gameEngine.start();
+
     if (inputType === 'camera') {
       await startCameraMode();
     } else {
       startKeyboardMode();
     }
 
-    // Start engines
-    gameEngine.start();
     document.getElementById("stopBtn").disabled = false;
 
   } catch (error) {
