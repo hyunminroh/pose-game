@@ -280,19 +280,61 @@ function drawGameElements() {
   }
   ctx.stroke();
 
-  // Draw Basket
-  const basketW = width * basketWidthRatio;
-  const basketX = (width * basketXRatio) - (basketW / 2);
+  // Draw Basket (Realistic Wicker Style)
+  const basketW = width * basketWidthRatio; // Total width
+  const basketX = (width * basketXRatio); // Center X
 
-  ctx.fillStyle = "rgba(0, 255, 100, 0.8)";
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 3;
-  ctx.fillRect(basketX, height - 40, basketW, 30);
-  ctx.strokeRect(basketX, height - 40, basketW, 30);
+  const basketTopY = height - 50;
+  const basketBottomY = height - 10;
+  const topHalfW = basketW / 2;
+  const bottomHalfW = basketW * 0.35; // Narrower bottom
 
+  ctx.save();
+
+  // 1. Basket Shape (Trapezoid)
+  ctx.beginPath();
+  ctx.moveTo(basketX - topHalfW, basketTopY); // Top Left
+  ctx.lineTo(basketX + topHalfW, basketTopY); // Top Right
+  ctx.lineTo(basketX + bottomHalfW, basketBottomY); // Bottom Right
+  ctx.lineTo(basketX - bottomHalfW, basketBottomY); // Bottom Left
+  ctx.closePath();
+
+  // 2. Fill with Wicker Color
+  ctx.fillStyle = "#d35400"; // Dark Orange/Brown
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#8e44ad"; // Outline
+  ctx.stroke();
+
+  // 3. Wicker Texture (Weaving Lines)
+  ctx.strokeStyle = "#e67e22"; // Lighter Orange
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  // Horizontal lines
+  for (let y = basketTopY + 5; y < basketBottomY; y += 8) {
+    ctx.moveTo(basketX - topHalfW + 5, y);
+    ctx.lineTo(basketX + topHalfW - 5, y);
+  }
+  // Vertical lines (angled)
+  for (let xOffset = -0.3; xOffset <= 0.3; xOffset += 0.15) {
+    ctx.moveTo(basketX + (basketW * xOffset), basketTopY);
+    ctx.lineTo(basketX + (basketW * xOffset * 0.8), basketBottomY);
+  }
+  ctx.stroke();
+
+  // 4. Basket Rim
+  ctx.beginPath();
+  ctx.rect(basketX - topHalfW - 5, basketTopY - 5, basketW + 10, 8);
+  ctx.fillStyle = "#a04000"; // Darker Rim
+  ctx.fill();
+
+  // 5. Label "ME"
   ctx.fillStyle = "white";
-  ctx.font = "bold 16px Arial";
-  ctx.fillText("ME", Math.max(0, basketX), height - 45);
+  ctx.font = "bold 14px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("ME", basketX, basketBottomY - 10);
+
+  ctx.restore();
 
   // Draw Items
   items.forEach(item => {
