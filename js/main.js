@@ -96,8 +96,8 @@ function setupGameCallbacks() {
   });
 
   gameEngine.setGameEndCallback((finalScore, finalLevel) => {
-    alert(`Game Over! Score: ${finalScore}`);
-    stop();
+    alert(`Game Over! Score: ${finalScore}\nReturning to Menu...`);
+    location.reload();
   });
 }
 
